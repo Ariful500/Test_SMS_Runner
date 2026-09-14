@@ -1,0 +1,53 @@
+name: SMS Bot Runner
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 365
+
+    steps:
+      - name: Checkout Public Repo (code)
+        uses: actions/checkout@v4
+
+      - name: Checkout Private Repo (.env + sms_data)
+        uses: actions/checkout@v4
+        with:
+          repository: Ariful500/Test_SMS
+          token: ${{ secrets.GH_PAT }}
+          path: private-data
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Setup .env and sms_data
+        run: |
+          cp private-data/.env .env
+          rm -rf sms_data
+          cp -r private-data/sms_data sms_data
+
+      - name: Run Bot (max 6 hours)
+        run: timeout 21600 python main.py || true
+
+      - name: Save Updated Data Back to Private Repo
+        run: |
+          rm -rf private-data/sms_data
+          cp -r sms_data private-data/sms_data
+
+      - name: Push Updated Data
+        working-directory: ./private-data
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add sms_data/
+          git commit -m "🔄 SMS Data Update - $(date '+%Y-%m-%d %H:%M:%S')" || echo "কোনো পরিবর্তন নেই"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
